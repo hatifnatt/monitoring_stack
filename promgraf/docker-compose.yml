@@ -1,0 +1,101 @@
+# Define PROMETHEUS_ and GRAFANA_ variables in .env file
+version: "3.5"
+
+services:
+  grafana:
+    image: grafana/grafana:${GRAFANA_TAG:-6.4.3}
+    container_name: grafana
+    restart: unless-stopped
+    volumes:
+      - grafana_etc:/etc/grafana/
+      - ./grafana/etc/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_log:/var/log/grafana
+    networks:
+      - default
+      - zabbix_zbx-net-back
+      - proxy_proxy-net
+    extra_hosts:
+      - "dockerhost:172.16.254.1"
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      VIRTUAL_HOST: ${GRAFANA_VHOST:-}
+      LETSENCRYPT_HOST: ${GRAFANA_VHOST_LE:-}
+      GF_SERVER_ROOT_URL: ${GRAFANA_SCHEME:-http}://${GRAFANA_VHOST:-localhost}
+      ZABBIX_API_USER: ${ZABBIX_API_USER:-Admin}
+      ZABBIX_API_PASS: ${ZABBIX_API_PASS:-zabbix}
+      ZABBIX_DB: ${ZABBIX_DB:-zabbix}
+      ZABBIX_RO_DBUSER: ${ZABBIX_RO_DBUSER:-grafana}
+      ZABBIX_RO_DBPASSWORD: ${ZABBIX_RO_DBPASSWORD:-grafana}
+    env_file:
+      - ./grafana.env
+    secrets:
+      - GRAFANA_ADMIN_PASSWORD
+    labels:
+      org.label-schema.group: monitoring
+
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_TAG:-v2.13.1}
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/etc:/etc/prometheus/
+      - prometheus_data:/prometheus
+    networks:
+      - default
+      - proxy_proxy-net
+    extra_hosts:
+      - "dockerhost:172.16.254.1"
+    ports:
+      - "127.0.0.1:9090:9090"
+    environment:
+      VIRTUAL_HOST: ${PROMETHEUS_VHOST:-}
+      LETSENCRYPT_HOST: ${PROMETHEUS_VHOST_LE:-}
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=60d'
+      - '--web.external-url=${PROMETHEUS_SCHEME:-http}://${PROMETHEUS_VHOST:-localhost}/'
+    labels:
+      org.label-schema.group: monitoring
+
+  cadvisor:
+    image: google/cadvisor:${CADVISOR_TAG:-v0.33.0}
+    container_name: cadvisor
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "127.0.0.1:9200:8080"
+    command:
+      - '--allow_dynamic_housekeeping=false'
+      - '--global_housekeeping_interval=60s'
+      - '--housekeeping_interval=5s'
+      - '--docker_only=true'
+    labels:
+      org.label-schema.group: monitoring
+
+
+volumes:
+  prometheus_data:
+  grafana_etc:
+  grafana_data:
+  grafana_log:
+
+networks:
+  # network for communications with nginx-proxy container and with docker host itself
+  proxy_proxy-net:
+    external: true
+  # network for communications with zabbix-server and directly to Zabbix DB
+  zabbix_zbx-net-back:
+    external: true
+
+secrets:
+  GRAFANA_ADMIN_PASSWORD:
+    file: ./grafana.pass

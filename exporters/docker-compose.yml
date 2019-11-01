@@ -1,0 +1,18 @@
+version: '3'
+
+services:
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:${NGINX_EXPORTER_TAG:-0.4.2}
+    container_name: nginx-exporter
+    restart: unless-stopped
+    environment:
+      SCRAPE_URI: http://nginx-proxy:8080/stub_status
+    networks:
+      - proxy_proxy-net
+    extra_hosts:
+      - "dockerhost:172.16.254.1"
+
+networks:
+  # network for communications with nginx-proxy container and with docker host itself
+  proxy_proxy-net:
+    external: true

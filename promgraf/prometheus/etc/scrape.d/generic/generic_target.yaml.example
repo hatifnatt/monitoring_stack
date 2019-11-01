@@ -1,0 +1,12 @@
+# you can add any target here it will be scraper every 10 seconds via http protocol
+# add 'job' label if required
+# those targest 'job' label will be 'node_exporter'
+- targets:
+    - anoter_node_exporter.host
+  labels:
+    job: 'node_exporter'
+# those targest 'job' label will be 'nginx_exporter'
+- targets:
+    - anoter_nginx_exporter.host
+  labels:
+    job: 'nginx_exporter'

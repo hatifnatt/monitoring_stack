@@ -1,0 +1,167 @@
+version: '3.1'
+
+services:
+  # Adminer for managing databases, optional
+  adminer:
+    image: adminer
+    container_name: adminer
+    restart: unless-stopped
+    ports:
+      # bind to loopback only, no access from Internet
+      - "127.0.0.1:8080:8080"
+      #- 8080:8080
+    networks:
+      - zbx-net-back
+      - proxy_proxy-net
+
+  ## PostgreSQL for Zabbix
+  # https://hub.docker.com/_/postgres/
+  # https://github.com/docker-library/docs/tree/master/postgres
+  postgres-server:
+    # image: postgres:${POSTGRES_TAG:-12}
+    build:
+      context: ./postgres/build
+      args:
+        postgres_tag: ${POSTGRES_TAG:-12}
+    container_name: postgres
+    environment:
+      # Manage password with 'docker secret' see https://docs.docker.com/engine/swarm/secrets/
+      POSTGRES_PASSWORD_FILE: ${POSTGRES_PASSWORD_FILE:-/run/secrets/POSTGRES_PASSWORD}
+      ZABBIX_DB: ${ZABBIX_DB:-zabbix}
+      ZABBIX_DBUSER: ${ZABBIX_DBUSER:-zabbix}
+      ZABBIX_DBPASSWORD_FILE: ${ZABBIX_DBPASSWORD_FILE:-/run/secrets/ZABBIX_DBPASSWORD}
+      # read only user to access Zabbix DB from Grafana directly (not via Zabbix API)
+      ZABBIX_RO_DBUSER: ${ZABBIX_RO_DBUSER:-grafana}
+      # password for read-only user for zabbix database
+      ZABBIX_RO_DBPASSWORD: ${ZABBIX_RO_DBPASSWORD:-grafana}
+    env_file:
+      - ./postgres.env
+    restart: unless-stopped
+    volumes:
+      - ./postgres/data:/var/lib/postgresql/data:rw
+      - ./postgres/init:/docker-entrypoint-initdb.d:rw
+    labels:
+      org.label-schema.group: database
+    networks:
+      zbx-net-back:
+        aliases:
+          - db
+    secrets:
+      - POSTGRES_PASSWORD
+      - ZABBIX_DBPASSWORD
+
+  ## Zabbix Server
+  # https://github.com/zabbix/zabbix-docker/tree/4.4/server-pgsql/ubuntu
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:${ZABBIX_SERVER_TAG:-ubuntu-4.4.1}
+    container_name: zabbix-server
+    restart: unless-stopped
+    # A lot of volumes defined in image Dockerfile, we don't want anon volumes so a lot of mappings below
+    volumes:
+      # we don't want tons of anon volumes, so a lot of binds below
+      # https://github.com/zabbix/zabbix-docker/tree/4.4/server-pgsql/ubuntu#allowed-volumes-for-the-zabbix-server-container
+      - ./zabbix-server/usr/lib/alertscripts:/usr/lib/zabbix/alertscripts
+      - ./zabbix-server/usr/lib/externalscripts:/usr/lib/zabbix/externalscripts
+      - ./zabbix-server/var/lib/mibs:/var/lib/zabbix/mibs
+      - ./zabbix-server/var/lib/modules:/var/lib/zabbix/modules
+      - ./zabbix-server/var/lib/enc:/var/lib/zabbix/enc
+      - ./zabbix-server/var/lib/ssl/keys:/var/lib/zabbix/ssl/keys
+      - ./zabbix-server/var/lib/ssh_keys:/var/lib/zabbix/ssh_keys
+      - ./zabbix-server/var/lib/ssl/ssl_ca:/var/lib/zabbix/ssl/ssl_ca
+      - ./zabbix-server/var/lib/snmptraps:/var/lib/zabbix/snmptraps
+      - ./zabbix-server/var/lib/ssl/certs:/var/lib/zabbix/ssl/certs
+    ports:
+      - 10051:10051
+    environment:
+      ## zabbix-server
+      DB_SERVER_HOST: ${DB_SERVER_HOST:-postgres-server}
+      # note env params names, we don't want to use same names as in postgres container
+      # otherwise 'postgres' superuser will be used by zabbix
+      POSTGRES_DB: ${ZABBIX_DB:-zabbix}
+      POSTGRES_USER: ${ZABBIX_DBUSER:-zabbix}
+      POSTGRES_PASSWORD_FILE: ${ZABBIX_DBPASSWORD_FILE:-/run/secrets/ZABBIX_DBPASSWORD}
+    depends_on:
+      - postgres-server
+    labels:
+      org.label-schema.group: monitoring
+    networks:
+      # - zbx-net-front
+      - zbx-net-back
+      - proxy_proxy-net
+    # use gateway from proxy_proxy-net to access docker host
+    extra_hosts:
+      - "dockerhost:172.16.254.1"
+    secrets:
+      - ZABBIX_DBPASSWORD
+
+  ## Zabbix Web Frontend
+  # https://github.com/zabbix/zabbix-docker/tree/4.4/web-nginx-pgsql/ubuntu
+  zabbix-web:
+    # image: ${ZABBIX_WEB_TAG:-ubuntu-4.4.1}
+    build:
+      context: ./zabbix-web/build
+      args:
+        zabbix_web_tag: ${ZABBIX_WEB_TAG:-ubuntu-4.4.1}
+    container_name: zabbix-web
+    restart: unless-stopped
+    volumes:
+      - ./zabbix-web/ssl:/etc/ssl/nginx
+    ports:
+      - "127.0.0.1:8081:80"
+    environment:
+      VIRTUAL_HOST: ${ZABBIX_VHOST:-}
+      LETSENCRYPT_HOST: ${ZABBIX_VHOST_LE:-}
+      ZBX_SERVER_HOST: ${ZBX_SERVER_HOST:-zabbix-server}
+      PHP_TZ: ${PHP_TZ:-Etc/UTC}
+      POSTGRES_DB: ${ZABBIX_DB:-zabbix}
+      POSTGRES_USER: ${ZABBIX_DBUSER:-zabbix}
+      POSTGRES_PASSWORD_FILE: ${ZABBIX_DBPASSWORD_FILE:-/run/secrets/ZABBIX_DBPASSWORD}
+    networks:
+      # see networks for details
+      # - zbx-net-front
+      - zbx-net-back
+      - proxy_proxy-net
+    # use gateway from proxy_proxy-net to access docker host
+    extra_hosts:
+      - "dockerhost:172.16.254.1"
+    depends_on:
+      - postgres-server
+      - zabbix-server
+    labels:
+      org.label-schema.group: monitoring
+    secrets:
+      - ZABBIX_DBPASSWORD
+
+networks:
+  # network for communications with nginx-proxy container and with docker host itself
+  proxy_proxy-net:
+    external: true
+  # network for communications between zabbix-server, zabbix-web and postgresql
+  zbx-net-back:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "false"
+    internal: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.253.0/25
+  # network for communication with host machine, can be used to reach
+  # zabbix-server and zabbix-web if proxy network is not used
+  # zbx-net-front:
+  #   driver: bridge
+  #   driver_opts:
+  #     com.docker.network.enable_ipv6: "false"
+  #   ipam:
+  #     driver: default
+  #     config:
+  #       - subnet: 172.16.253.128/25
+
+# secret files must exist, otherwise container won't start
+secrets:
+  # postgres superuser password, for postgres-server
+  POSTGRES_PASSWORD:
+    file: ./postgres.pass
+  # password for zabbix user
+  ZABBIX_DBPASSWORD:
+    file: ./zabbix.pass

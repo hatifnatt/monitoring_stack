@@ -1,0 +1,3 @@
+# those targest 'job' label will be 'node_exporter'
+- targers:
+    - another.host

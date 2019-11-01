@@ -1,0 +1,45 @@
+
+
+## Ignore various long-term stored and runtime data 
+proxy/nginx/htpasswd/**
+zabbix/postgres/data/**
+zabbix/zabbix-server/usr/lib/**
+zabbix/zabbix-server/var/lib/**
+!zabbix/zabbix-server/var/lib/ssl
+zabbix/zabbix-server/var/lib/ssl/**
+
+## Ignore user added provisioning files
+# Dashboard sources
+promgraf/grafana/dashboards/**
+!promgraf/grafana/dashboards/docker_host_and_container_owerview.json
+!promgraf/grafana/dashboards/docker_monitoring.json
+!promgraf/grafana/dashboards/nginx_exporter.json
+!promgraf/grafana/dashboards/node_exporter_full.json
+# Dashboard provisioning definitions
+promgraf/grafana/etc/provisioning/dashboards/**
+!promgraf/grafana/etc/provisioning/dashboards/Dashboards.yaml
+# Datasources provisioning definitions
+promgraf/grafana/etc/provisioning/datasources/**
+!promgraf/grafana/etc/provisioning/datasources/PostgreSQL Zabbix.yaml
+!promgraf/grafana/etc/provisioning/datasources/Prometheus.yaml
+!promgraf/grafana/etc/provisioning/datasources/Zabbix.yaml
+
+promgraf/prometheus/etc/scrape.d/generic/*.yaml
+promgraf/prometheus/etc/scrape.d/generic/*.yml
+promgraf/prometheus/etc/scrape.d/generic/*.json
+promgraf/prometheus/etc/scrape.d/node_exporter/*.yaml
+promgraf/prometheus/etc/scrape.d/node_exporter/*.yml
+promgraf/prometheus/etc/scrape.d/node_exporter/*.json
+
+## Ignore environment files with per-installation params
+.env
+*.env
+*.pass
+!postgres.env
+!zabbix.env
+!prometheus.env
+
+!.gitkeep
+
+.vscode
+*.code-workspace

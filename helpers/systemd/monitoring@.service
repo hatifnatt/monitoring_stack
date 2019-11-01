@@ -1,0 +1,19 @@
+[Unit]
+Description=%i service, part of monitoring stack
+Documentation=https://github.com/hatifnatt/monitoring_stack/
+Requires=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+WorkingDirectory=/opt/monitoring/%i
+Type=simple
+TimeoutSec=2min
+# Logs are already saved by docker, don't duplicate them to journald
+# Logs can be viewed with 'docker logs <container_name> --tail 100 --follow'
+# Or 'cd /opt/monitoring/<project>; docker-compose logs --tail 100 --follow'
+StandardOutput=null
+ExecStart=/usr/local/bin/docker-compose up --remove-orphans
+ExecStop=/usr/local/bin/docker-compose stop
+
+[Install]
+WantedBy=multi-user.target

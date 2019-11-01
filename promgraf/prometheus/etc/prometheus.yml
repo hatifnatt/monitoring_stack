@@ -1,0 +1,60 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+# A scrape configuration containing exactly one endpoint to scrape.
+scrape_configs:
+  - job_name: 'prometheus'
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - 'localhost:9090'
+
+  - job_name: 'grafana'
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - 'grafana:3000'
+
+  - job_name: 'cadvisor'
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - 'cadvisor:8080'
+
+  - job_name: 'node_exporter'
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - 'dockerhost:9100'
+        labels:
+          job: 'node_exporter'
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/scrape.d/node_exporter/*.yaml
+          - /etc/prometheus/scrape.d/node_exporter/*.yml
+          - /etc/prometheus/scrape.d/node_exporter/*.json
+        refresh_interval: 5m
+
+  - job_name: 'nginx_exporter'
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - 'nginx-exporter:9113'
+
+  - job_name: 'generic_10s_scrape'
+    scrape_interval: 10s
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/scrape.d/generic/*.yaml
+          - /etc/prometheus/scrape.d/generic/*.yml
+          - /etc/prometheus/scrape.d/generic/*.json
+        refresh_interval: 5m
+
+
+alerting:
+  alertmanagers:
+  - scheme: http
+    static_configs:
+      - targets: 
+        # - 'alertmanager:9093'
