@@ -6,7 +6,7 @@ services:
     container_name: nginx-exporter
     restart: unless-stopped
     environment:
-      SCRAPE_URI: http://nginx-proxy:8080/stub_status
+      SCRAPE_URI: http://nginx-proxy:8082/stub_status
     networks:
       - proxy_proxy-net
     extra_hosts:

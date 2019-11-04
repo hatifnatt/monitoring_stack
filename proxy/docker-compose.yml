@@ -14,6 +14,7 @@ services:
     ports:
       - 80:80
       - 443:443
+      - "127.0.0.1:8082:8082"
     volumes:
       - nginx_certs:/etc/nginx/certs:ro
       - nginx_vhost.d:/etc/nginx/vhost.d
